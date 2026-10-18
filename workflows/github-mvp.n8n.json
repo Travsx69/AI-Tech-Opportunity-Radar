@@ -1,0 +1,150 @@
+{
+  "id": "13oxoQeASaKIsu74",
+  "name": "AI Tech Opportunity Radar - GitHub MVP",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "0f6c99f8-e749-46c5-95f4-001991584b3e",
+      "name": "Run Manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "912da5a7-ac8d-43e1-9031-a7fb5592cc9c",
+      "name": "Daily at 6 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -752,
+        -192
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8787/run",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "{}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "0997b3a8-f4c7-4e2b-9403-e2d5d567bb81",
+      "name": "Run GitHub Radar MVP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "position": [
+        -496,
+        -96
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\nconst MAX_DISCORD_LENGTH = 1900;\nconst MAX_OPPORTUNITIES = 5;\n\nfunction clean(value, limit = 360) {\n  const text = String(value || '').replace(/\\s+/g, ' ').trim();\n  if (text.length <= limit) return text;\n  return `${text.slice(0, Math.max(0, limit - 1)).trimEnd()}…`;\n}\n\nfunction plural(count, singular, pluralForm) {\n  return count === 1 ? singular : (pluralForm || `${singular}s`);\n}\n\nfunction categoryEmoji(category) {\n  if (category === 'potential business opportunity') return '🟣';\n  if (category === 'potential product idea') return '🟠';\n  if (category === 'technology worth testing' || category === 'useful technology') return '🟢';\n  return '🟡';\n}\n\nfunction formatDate(now) {\n  const date = now ? new Date(now) : new Date();\n  return new Intl.DateTimeFormat('en-US', {\n    timeZone: 'Asia/Manila',\n    month: 'long',\n    day: 'numeric',\n    year: 'numeric',\n  }).format(date);\n}\n\nfunction opportunityBlock(report) {\n  const source = clean(report.source, 40) || 'GitHub'; // records predating multi-source were GitHub-only\n  const lines = [\n    '━━━━━━━━━━━━━━━━━━',\n    '',\n    `${categoryEmoji(report.category)} ${clean(report.title, 120) || 'Untitled opportunity'}`,\n    report.update_reason ? `🔄 Updated: ${clean(report.update_reason, 120)}` : '🆕 New',\n  ];\n  // Stars exist only for GitHub records; null/undefined must not render as \"0 GitHub stars\".\n  if (report.github_stars !== null && report.github_stars !== undefined && Number.isFinite(Number(report.github_stars)) && source === 'GitHub') {\n    lines.push(`⭐ ${Number(report.github_stars).toLocaleString('en-US')} GitHub stars`);\n  }\n  lines.push(\n    '',\n    'What it does:',\n    clean(report.what_it_does, 340) || 'Insufficient evidence in this run.',\n    '',\n    'Why it matters:',\n    clean(report.why_it_matters, 300) || 'Insufficient evidence in this run.',\n    '',\n    'Potential use for us:',\n    clean(report.potential_use_for_us, 300) || 'Further review is required.',\n    '',\n    `🔗 ${source}:`,\n    clean(report.url, 240),\n  );\n  const supporting = (Array.isArray(report.supporting_sources) ? report.supporting_sources : []).slice(0, 2);\n  for (const s of supporting) lines.push(`↳ Also on ${clean(s.source, 40)}: ${clean(s.url, 200)}`);\n  return lines.join('\\n');\n}\n\nfunction serviceFailureDigest(now) {\n  return [[\n    '🤖 **AI TECH OPPORTUNITY RADAR**',\n    formatDate(now),\n    '',\n    '⚠️ **RADAR SERVICE FAILURE**',\n    '',\n    'The Opportunity Radar service was unavailable or returned an invalid response.',\n    'Radar discovery did not run.',\n    'Collection statistics are unavailable for this execution.',\n  ].join('\\n')];\n}\n\nfunction isValidRadarResult(result) {\n  return Boolean(\n    result\n    && typeof result === 'object'\n    && !result.error\n    && Number.isFinite(result.collected)\n    && Number.isFinite(result.failed)\n    && Array.isArray(result.reports)\n  );\n}\n\n// A trigger that overlapped a run still in progress gets HTTP 409. The other run will post its own\n// digest, so this execution stays silent instead of sending a false failure alert.\nfunction isRunInProgress(result) {\n  if (!result || typeof result !== 'object' || !result.error) return false;\n  return /already in progress/i.test(typeof result.error === 'string' ? result.error : JSON.stringify(result.error));\n}\n\nfunction failingSources(result) {\n  return Object.entries(result.sources || {})\n    .filter(([, s]) => s && (s.status === 'failed' || s.status === 'degraded'))\n    .map(([name, s]) => `${name} (${s.status})`);\n}\n\nfunction healthFooter(result) {\n  const failing = failingSources(result);\n  const analysisFailed = Number(result.analysis_failed) || 0;\n  if (!failing.length && !analysisFailed) return '';\n  const parts = [];\n  if (failing.length) parts.push(`source errors: ${failing.join(', ')}`);\n  if (analysisFailed) parts.push(`${analysisFailed} analysis ${plural(analysisFailed, 'failure')}`);\n  return `⚠️ Partial failure: ${parts.join('; ')}. Details are in the Radar dashboard.`;\n}\n\nfunction formatDiscordDigest(result, now) {\n  if (isRunInProgress(result)) return [];\n  if (!isValidRadarResult(result)) return serviceFailureDigest(now);\n\n  const reports = result.reports;\n  const visible = reports.slice(0, MAX_OPPORTUNITIES);\n  const count = reports.length;\n  const updated = reports.filter((r) => r && r.update_reason).length;\n  const fresh = count - updated;\n  const footer = healthFooter(result);\n  let summary = 'No new opportunities found';\n  if (count > 0) {\n    summary = fresh > 0\n      ? `${fresh} new ${plural(fresh, 'opportunity', 'opportunities')} found${updated ? `, ${updated} materially updated` : ''}`\n      : `${updated} materially updated ${plural(updated, 'opportunity', 'opportunities')}`;\n  }\n  const header = ['🤖 **AI TECH OPPORTUNITY RADAR**', formatDate(now), '', summary].join('\\n');\n\n  if (count === 0) {\n    // Clean empty runs stay silent (no daily spam); empty runs with errors still alert.\n    if (!footer && result.status !== 'failed') return [];\n    return [[\n      header,\n      '',\n      result.status === 'failed' ? '⚠️ No source could be collected in this run.' : footer,\n      `Collected: ${Number(result.collected) || 0}`,\n      `Failed: ${Number(result.failed) || 0}`,\n    ].filter(Boolean).join('\\n')];\n  }\n\n  const messages = [];\n  let current = header;\n  for (const report of visible) {\n    const block = opportunityBlock(report);\n    if (`${current}\\n\\n${block}`.length > MAX_DISCORD_LENGTH && current !== header) {\n      messages.push(current);\n      current = `🤖 **AI TECH OPPORTUNITY RADAR — CONTINUED**\\n\\n${block}`;\n    } else {\n      current = `${current}\\n\\n${block}`;\n    }\n  }\n  if (reports.length > visible.length) {\n    const remainder = `\\n\\n${reports.length - visible.length} additional ${plural(reports.length - visible.length, 'opportunity', 'opportunities')} stored in the Radar.`;\n    if ((current + remainder).length <= MAX_DISCORD_LENGTH) current += remainder;\n  }\n  if (footer) {\n    if ((`${current}\\n\\n${footer}`).length <= MAX_DISCORD_LENGTH) current = `${current}\\n\\n${footer}`;\n    else { messages.push(current); current = footer; }\n  }\n  messages.push(current);\n  return messages;\n}\n\n\nconst radarResult = $input.first().json;\nconst messages = formatDiscordDigest(radarResult);\nreturn messages.map((content, index) => ({\n  json: {\n    content,\n    digest_part: index + 1,\n    digest_parts: messages.length,\n    radar_result: radarResult,\n  },\n}));\n"
+      },
+      "id": "6b0d3657-0f24-4d69-838c-5fc77c304e93",
+      "name": "Format Discord Digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "={{ $json.content }}",
+        "options": {
+          "wait": true
+        }
+      },
+      "id": "8d5f6d96-38f9-4d23-8703-7d1229999e4a",
+      "name": "Send Discord Digest",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        48,
+        -96
+      ],
+      "webhookId": "50394ad6-1d6d-409d-a43e-dd1d7311c69f",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "4xCiRHtIT9ZbnuFr",
+          "name": "Discord Webhook account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run Manually": {
+      "main": [
+        [
+          {
+            "node": "Run GitHub Radar MVP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run GitHub Radar MVP": {
+      "main": [
+        [
+          {
+            "node": "Format Discord Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Discord Digest": {
+      "main": [
+        [
+          {
+            "node": "Send Discord Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily at 6 AM": {
+      "main": [
+        [
+          {
+            "node": "Run GitHub Radar MVP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "Asia/Manila",
+    "executionOrder": "v1"
+  },
+  "active": false
+}

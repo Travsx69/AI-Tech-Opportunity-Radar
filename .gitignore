@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.env
+data/
+data-verification/
+workflows/*-validation.log
+.pytest_cache/
+scratch_*.py
+_backup_initial/
+workflows/backup/

@@ -1,0 +1,76 @@
+{
+  "_comment": "Free-only discovery sources. Edit to add feeds/queries without touching the pipeline. A source with requires_payment or requires_credentials true is never enabled automatically. Access terms verified 2026-10-16; see README 'Sources'.",
+  "github": {
+    "enabled": true,
+    "access": "GitHub REST search API; optional free GITHUB_TOKEN. Anonymous search limit is low (HTTP 403 when exhausted).",
+    "min_interval_minutes": 0
+  },
+  "hacker_news": {
+    "enabled": true,
+    "access": "HN Search by Algolia, public, no key. No official rate limit published; Radar sends ~6 requests per run.",
+    "min_interval_minutes": 0,
+    "per_query": 10,
+    "min_points": 5,
+    "_types": "Show HN -> product_tool, Ask HN -> business, GitHub links -> open_source, other stories -> item_type (default business: news/discussion).",
+    "queries": [
+      {"query": "AI agent"},
+      {"query": "workflow automation"},
+      {"query": "developer tools LLM"},
+      {"query": "open source LLM"},
+      {"query": "SaaS launch"},
+      {"query": "Ask HN looking for tool"}
+    ]
+  },
+  "hugging_face": {
+    "enabled": true,
+    "access": "Hugging Face Hub public API, no token. Anonymous limit 500 API requests per 5 minutes per IP; Radar sends ~6 per run.",
+    "min_interval_minutes": 360,
+    "limit": 10,
+    "max_pages": 1,
+    "min_likes": 10,
+    "max_age_days": 180,
+    "searches": [
+      {"kind": "models", "search": "agent"},
+      {"kind": "models", "search": "function calling"},
+      {"kind": "datasets", "search": "agent"},
+      {"kind": "spaces", "search": "agent"},
+      {"kind": "spaces", "search": "automation"},
+      {"kind": "spaces", "search": "mcp"}
+    ]
+  },
+  "rss": {
+    "enabled": true,
+    "access": "Official public RSS/Atom feeds; summaries stored with links back to the publisher.",
+    "min_interval_minutes": 180,
+    "max_items_per_feed": 8,
+    "max_age_days": 21,
+    "feeds": [
+      {"name": "openai-news", "url": "https://openai.com/news/rss.xml", "publisher": "OpenAI", "item_type": "product_tool", "category": "ai-company", "enabled": true},
+      {"name": "google-ai-blog", "url": "https://blog.google/technology/ai/rss/", "publisher": "Google", "item_type": "product_tool", "category": "ai-company", "enabled": true},
+      {"name": "huggingface-blog", "url": "https://huggingface.co/blog/feed.xml", "publisher": "Hugging Face", "item_type": "research_release", "category": "model-release", "enabled": true},
+      {"name": "aws-ml-blog", "url": "https://aws.amazon.com/blogs/machine-learning/feed/", "publisher": "AWS", "item_type": "product_tool", "category": "ai-company", "enabled": true},
+      {"name": "arxiv-cs-ai", "url": "https://rss.arxiv.org/rss/cs.AI", "publisher": "arXiv", "item_type": "research_release", "category": "research", "enabled": true},
+      {"name": "github-changelog", "url": "https://github.blog/changelog/feed/", "publisher": "GitHub", "item_type": "product_tool", "category": "developer-tools", "enabled": true},
+      {"name": "n8n-releases", "url": "https://github.com/n8n-io/n8n/releases.atom", "publisher": "n8n", "item_type": "open_source", "category": "automation", "title_prefix": "n8n release", "enabled": true},
+      {"name": "ollama-releases", "url": "https://github.com/ollama/ollama/releases.atom", "publisher": "Ollama", "item_type": "open_source", "category": "local-llm", "title_prefix": "Ollama release", "enabled": true},
+      {"name": "mcp-servers-releases", "url": "https://github.com/modelcontextprotocol/servers/releases.atom", "publisher": "Model Context Protocol", "item_type": "open_source", "category": "mcp", "title_prefix": "MCP servers release", "enabled": true},
+      {"name": "techcrunch-ai", "url": "https://techcrunch.com/category/artificial-intelligence/feed/", "publisher": "TechCrunch", "item_type": "business", "category": "startup-news", "enabled": true},
+      {"name": "deepmind-blog", "url": "https://deepmind.google/blog/rss.xml", "publisher": "Google DeepMind", "enabled": false, "disabled_reason": "Validation 2026-10-16: response was not parseable XML."},
+      {"name": "microsoft-ai-blog", "url": "https://blogs.microsoft.com/ai/feed/", "publisher": "Microsoft", "enabled": false, "disabled_reason": "Validation 2026-10-16: HTTP 410 Gone."}
+    ]
+  },
+  "remotive": {
+    "enabled": true,
+    "access": "Remotive public jobs API, no key. Terms: max 4 fetches/day, link back to Remotive and credit it, do not resubmit jobs to third-party job sites. Listings delayed 24h.",
+    "min_interval_minutes": 360,
+    "limit": 40,
+    "request_gap_seconds": 35,
+    "searches": ["AI", "automation"]
+  },
+  "product_hunt": {
+    "enabled": false,
+    "requires_credentials": true,
+    "access": "Product Hunt API v2 needs a developer token, and its docs state the API must not be used for commercial purposes without permission.",
+    "disabled_reason": "Requires an account token and has a non-commercial-use restriction; left disabled under the zero-cost / verified-terms policy."
+  }
+}

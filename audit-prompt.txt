@@ -1,0 +1,86 @@
+Audit this project using the dynamic-workflow skill.
+
+IMPORTANT:
+This is an AUDIT ONLY.
+Do not modify, delete, create, overwrite, or repair any project files.
+
+Goal:
+Determine the actual current state of AI-Tech-Opportunity-Radar and establish what is genuinely working versus what merely appears to be implemented.
+
+Use dynamic-workflow where appropriate. Break the audit into independent areas and use adversarial verification for important findings.
+
+Investigate:
+
+1. PROJECT INTENT
+   - Read README.md and determine what this project is supposed to do.
+   - Identify the intended user-facing workflow.
+
+2. APPLICATION ARCHITECTURE
+   - Inspect opportunity_radar/.
+   - Map the responsibilities of each module.
+   - Identify the actual execution path.
+
+3. DATA PIPELINE
+   - Inspect data/ and data-verification/.
+   - Determine how opportunities enter the system.
+   - Determine whether the verification data represents real validation or merely fixtures/output.
+
+4. TESTS
+   - Inspect every test file.
+   - Determine what each test actually verifies.
+   - Identify important functionality that has no meaningful test coverage.
+   - Do not equate the existence of tests with proof that the application works.
+
+5. N8N / AUTOMATION
+   - Inspect workflows/.
+   - Inspect scripts/ and n8n-related Python code.
+   - Determine what automation is actually implemented versus merely prepared.
+
+6. EXECUTION
+   - Inspect run.py, serve.py, and start-radar.ps1.
+   - Determine how the application is actually supposed to be started.
+   - If safe and read-only, identify commands that could be used to execute/test it.
+   - Do NOT start long-running services or modify anything.
+
+7. DEPENDENCIES / ENVIRONMENT
+   - Determine whether dependency metadata is missing.
+   - Identify external services the project expects, such as Ollama, GitHub, n8n, etc.
+   - Separate required dependencies from optional integrations.
+
+8. ADVERSARIAL VERIFICATION
+   For important findings, do not accept the first agent's conclusion.
+   Have independent analysis challenge the finding with concrete evidence.
+   A claim should survive only if the evidence supports it.
+
+9. FINAL REPORT
+
+Produce:
+
+A. VERIFIED WORKING
+   Only things for which you found concrete evidence.
+
+B. VERIFIED BROKEN
+   Only things supported by concrete evidence.
+
+C. UNVERIFIED
+   Things that may work but could not be established.
+
+D. MISSING / INCOMPLETE
+   Functionality implied by the project's intended design but not actually implemented or verified.
+
+E. TEST COVERAGE GAPS
+
+F. DEPENDENCY / ENVIRONMENT GAPS
+
+G. AUTOMATION / N8N STATUS
+
+H. RECOMMENDED NEXT IMPLEMENTATION WAVE
+
+I. VERIFICATION PLAN
+   Give exact commands that should be used to verify each important fix later.
+
+For every major conclusion, include the file, command, test result, or other concrete evidence supporting it.
+
+Do not report "completed" merely because code exists.
+Do not report "working" merely because a test file exists.
+Do not make changes during this audit.
