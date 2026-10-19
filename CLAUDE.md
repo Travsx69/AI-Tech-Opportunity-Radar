@@ -8,7 +8,7 @@ Local-first Python (stdlib only, Python 3.11 at `%APPDATA%\uv\python\cpython-3.1
 - `pipeline.py:run_discovery`: per-source and per-request isolation, `min_interval_minutes` skipping, request gaps, dedup, `discovered_items` index, analysis capped at `max_analyzed`. `run_github_discovery` is the legacy wrapper used by tests.
 - `core.py`: normalization, 3-stage dedup, relevance selection (word-boundary terms, one slot per source).
 - `store.py`: SQLite at `data/radar.db`. Migrations are additive `ALTER TABLE` and `CREATE IF NOT EXISTS` only; never recreate tables.
-- `service.py`: HTTP endpoints `/`, `/health`, `/run` (lock, 409 on overlap), `/api/opportunities|items|runs|sources`. `dashboard.py` holds the inline HTML.
+- `service.py`: HTTP endpoints `/`, `/health`, `/run` (lock, 409 on overlap), `/api/opportunities|items|runs|sources`. `dashboard.py` holds the inline HTML: a radar scope, ticker, KPI readouts, four tabs and a details drawer. Motion 11.11.13 comes from the jsDelivr CDN and animates HTML only, because Motion's SVG animations did not run in testing; SVG motion is CSS keyframes. Without the CDN the page works unanimated. All text goes through `textContent`, and links go through `safeHref` (http(s) only).
 - `app.py`: `RadarConfig.from_env()` uses `config/sources.json`. A `RadarConfig` built directly has `sources_config=None`, which means legacy GitHub(+HN) only, and tests rely on that to avoid the network.
 - AI: Ollama or OpenRouter, chosen by machine-scope env vars `AI_PROVIDER` and `OPENROUTER_*`. **Do not change the provider or model.**
 
@@ -21,7 +21,7 @@ Local-first Python (stdlib only, Python 3.11 at `%APPDATA%\uv\python\cpython-3.1
 - Stdlib only, type hints, `from __future__ import annotations`, and injectable collectors (`request_json`, `fetch_json_fn`) for tests.
 - Never invent metrics: use None when a source has no value (for example `github_stars` for non-GitHub, or job salary).
 - All stored and served error text goes through `redact()`.
-- Tests: `python -m unittest discover -s tests` (92) and `node --test tests/test_discord_digest.js` (12). Mock all HTTP.
+- Tests: `python -m unittest discover -s tests` (96) and `node --test tests/test_discord_digest.js` (12). Mock all HTTP.
 
 ## Status (2026-10-16)
 - Done: multi-source upgrade. A bounded live check collected real data from GitHub, HN, HF, RSS, and Remotive with no AI calls.
