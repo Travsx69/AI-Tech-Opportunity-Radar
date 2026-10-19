@@ -110,10 +110,10 @@ test('workflow Code node is generated from scripts/discord_digest.js', () => {
   assert.equal(runWorkflowFormatter({ collected: 1, failed: 0, status: 'success', reports: [] }).length, 0);
 });
 
-test('workflow keeps the deployed 6 AM Asia/Manila schedule and Discord credential', () => {
+test('workflow keeps the deployed 10 PM Asia/Manila schedule and Discord credential', () => {
   const workflow = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'workflows', 'github-mvp.n8n.json'), 'utf8'));
   const schedule = workflow.nodes.find((node) => node.type === 'n8n-nodes-base.scheduleTrigger');
-  assert.equal(schedule.parameters.rule.interval[0].expression, '0 6 * * *');
+  assert.equal(schedule.parameters.rule.interval[0].expression, '0 22 * * *');
   assert.equal(workflow.settings.timezone, 'Asia/Manila');
   const http = workflow.nodes.find((node) => node.type === 'n8n-nodes-base.httpRequest');
   assert.equal(http.continueOnFail, true);

@@ -19,13 +19,13 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 6 * * *"
+              "expression": "0 22 * * *"
             }
           ]
         }
       },
       "id": "912da5a7-ac8d-43e1-9031-a7fb5592cc9c",
-      "name": "Daily at 6 AM",
+      "name": "Daily at 10 PM",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
@@ -130,7 +130,7 @@
         ]
       ]
     },
-    "Daily at 6 AM": {
+    "Daily at 10 PM": {
       "main": [
         [
           {

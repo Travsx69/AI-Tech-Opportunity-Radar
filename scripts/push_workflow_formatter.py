@@ -1,11 +1,13 @@
-"""Pushes the regenerated "Format Discord Digest" code to the live n8n workflow, changing nothing else.
+"""Pushes the repo's Discord formatter code and schedule trigger to the live n8n workflow, changing nothing else.
 
     python scripts/push_workflow_formatter.py            # dry run: fetch, back up, build, assert
     python scripts/push_workflow_formatter.py --apply    # PUT as draft, read back, publish, verify
 
-Builds from the *published* version (what the schedule runs), swaps only jsCode, uploads with
-publishIfActive=false, verifies the read-back, then publishes that exact version. Rollback copies
-of the draft and published versions are written to workflows/backup/ first.
+Builds from the *published* version (what the schedule runs) and replaces only the
+"Format Discord Digest" jsCode (from scripts/discord_digest.js) and the schedule trigger's name and
+parameters (from workflows/github-mvp.n8n.json). Uploads with publishIfActive=false, verifies the
+read-back equals that expected workflow, then publishes that exact version. Rollback copies of the
+draft and published versions are written to workflows/backup/ first.
 Needs N8N_API_KEY (and optional N8N_BASE_URL). Stdlib only.
 """
 from __future__ import annotations
@@ -48,18 +50,25 @@ def strip(node: dict) -> dict:
     return {k: v for k, v in node.items() if k != "position"}
 
 
-def nodes_equal_except_code(a: list[dict], b: list[dict]) -> list[str]:
-    """Names of nodes that differ beyond the Code node's jsCode (positions ignored)."""
+def node_diff(a: list[dict], b: list[dict]) -> list[str]:
+    """Names of nodes that differ between two node lists (positions ignored)."""
     an, bn = {n["name"]: strip(n) for n in a}, {n["name"]: strip(n) for n in b}
-    problems = sorted(set(an) ^ set(bn))
-    for name in set(an) & set(bn):
-        x, y = copy.deepcopy(an[name]), copy.deepcopy(bn[name])
-        if name == CODE_NODE:
-            x["parameters"].pop("jsCode", None)
-            y["parameters"].pop("jsCode", None)
-        if x != y:
-            problems.append(name)
-    return problems
+    return sorted(set(an) ^ set(bn)) + sorted(n for n in set(an) & set(bn) if an[n] != bn[n])
+
+
+def is_schedule(node: dict) -> bool:
+    return node["type"].endswith("scheduleTrigger")
+
+
+def expected_workflow(published: dict, repo: dict, code: str) -> tuple[list[dict], dict]:
+    """The published nodes/connections with only the formatter code and the schedule trigger replaced."""
+    nodes, connections = copy.deepcopy(published["nodes"]), copy.deepcopy(published["connections"])
+    next(n for n in nodes if n["name"] == CODE_NODE)["parameters"]["jsCode"] = code
+    live_sched, repo_sched = next(n for n in nodes if is_schedule(n)), next(n for n in repo["nodes"] if is_schedule(n))
+    if live_sched["name"] != repo_sched["name"]:  # connections are keyed by node name
+        connections[repo_sched["name"]] = connections.pop(live_sched["name"])
+    live_sched["name"], live_sched["parameters"] = repo_sched["name"], copy.deepcopy(repo_sched["parameters"])
+    return nodes, connections
 
 
 def main() -> int:
@@ -80,30 +89,26 @@ def main() -> int:
     (backup_dir / f"{WORKFLOW_ID}-published-{active_id}-{stamp}.json").write_text(json.dumps(published, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"rollback copies saved in workflows/backup/ (published version {active_id})")
 
-    nodes = copy.deepcopy(published["nodes"])
-    code_node = next(n for n in nodes if n["name"] == CODE_NODE)
-    new_code = node_code()
-    if code_node["parameters"].get("jsCode") == new_code:
-        print("Live formatter already matches; nothing to do.")
+    repo = json.loads((ROOT / "workflows" / "github-mvp.n8n.json").read_text(encoding="utf-8"))
+    nodes, connections = expected_workflow(published, repo, node_code())
+    changed = node_diff(nodes, published["nodes"])
+    if not changed:
+        print("Live workflow already matches the repo; nothing to do.")
         return 0
-    code_node["parameters"]["jsCode"] = new_code
-    body = {"name": draft["name"], "nodes": nodes, "connections": published["connections"], "settings": draft["settings"]}
-
-    assert nodes_equal_except_code(nodes, published["nodes"]) == [], "only jsCode may differ from the published version"
-    assert body["connections"] == published["connections"]
-    print(f"built update: only {CODE_NODE}.jsCode changes ({len(new_code)} chars)")
+    allowed = {CODE_NODE} | {n["name"] for n in published["nodes"] + nodes if is_schedule(n)}
+    assert set(changed) <= allowed, f"unexpected node changes: {changed}"
+    body = {"name": draft["name"], "nodes": nodes, "connections": connections, "settings": draft["settings"]}
+    print(f"built update: changes {changed}")
     if not args.apply:
         print("dry run: no changes sent. Re-run with --apply.")
         return 0
 
-    saved = api("PUT", f"/workflows/{WORKFLOW_ID}?publishIfActive=false", body)
+    api("PUT", f"/workflows/{WORKFLOW_ID}?publishIfActive=false", body)
     readback = api("GET", f"/workflows/{WORKFLOW_ID}")
     new_version = readback.get("versionId")
-    rb_code = next(n for n in readback["nodes"] if n["name"] == CODE_NODE)["parameters"].get("jsCode")
     checks = {
-        "draft has new code": rb_code == new_code,
-        "no other node changed": nodes_equal_except_code(readback["nodes"], published["nodes"]) == [],
-        "connections unchanged": readback["connections"] == published["connections"],
+        "draft equals expected nodes": node_diff(readback["nodes"], nodes) == [],
+        "draft connections as expected": readback["connections"] == connections,
         "live version untouched before publish": readback.get("activeVersionId") == active_id,
         "still active": readback.get("active") is True,
         "new draft version created": bool(new_version) and new_version != draft.get("versionId"),
@@ -116,14 +121,12 @@ def main() -> int:
     api("POST", f"/workflows/{WORKFLOW_ID}/activate", {"versionId": new_version})
     after = api("GET", f"/workflows/{WORKFLOW_ID}")
     live = api("GET", f"/workflows/{WORKFLOW_ID}/{after.get('activeVersionId')}")
-    live_code = next(n for n in live["nodes"] if n["name"] == CODE_NODE)["parameters"].get("jsCode")
     final = {
         "active": after.get("active") is True,
         "published version is the new draft": after.get("activeVersionId") == new_version,
-        "published code is new code": live_code == new_code,
-        "published nodes otherwise identical": nodes_equal_except_code(live["nodes"], published["nodes"]) == [],
-        "schedule unchanged": [n["parameters"] for n in live["nodes"] if n["type"].endswith("scheduleTrigger")]
-                              == [n["parameters"] for n in published["nodes"] if n["type"].endswith("scheduleTrigger")],
+        "published nodes equal expected": node_diff(live["nodes"], nodes) == [],
+        "published connections as expected": live["connections"] == connections,
+        "schedule": [n["parameters"] for n in live["nodes"] if is_schedule(n)],
     }
     print("published:", json.dumps(final), f"old={active_id} new={after.get('activeVersionId')}")
     return 0 if all(final.values()) else 1

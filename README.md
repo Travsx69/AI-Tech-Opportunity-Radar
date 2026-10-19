@@ -19,7 +19,7 @@ How a run works: every enabled source runs independently (one failing request on
 
 API additions (existing contracts kept): `/api/sources` returns the original five fields plus `enabled`, `healthy`, `collecting`, `last_success_at`, `indexed_items`, and a `summary` with configured, enabled, healthy, and collecting counts. `/api/opportunities?type=` filters by type. `/api/items?type=&source=&search=` lists the full index, including jobs.
 
-n8n/Discord: `workflows/github-mvp.n8n.json` was rebuilt from the live export (`data/workflow-live.json`: 6 AM Asia/Manila, same nodes and credential), and its formatter was regenerated from `scripts/discord_digest.js` with `python scripts/sync_workflow_code.py`. The formatter now labels each link by source and marks items as new or updated. It adds supporting links and a footer for partial failures. It stays silent on clean empty runs and on 409 overlapping-run responses. Pushed to live n8n on 2026-10-16 with `python scripts/push_workflow_formatter.py --apply` (run it without `--apply` for a dry run). The script changes only the Code node, writes rollback copies to `workflows/backup/`, and verifies the result before and after publishing.
+n8n/Discord: `workflows/github-mvp.n8n.json` was rebuilt from the live export (`data/workflow-live.json`: same nodes and credential), and its formatter was regenerated from `scripts/discord_digest.js` with `python scripts/sync_workflow_code.py`. The formatter now labels each link by source and marks items as new or updated. It adds supporting links and a footer for partial failures. It stays silent on clean empty runs and on 409 overlapping-run responses. Pushed to live n8n on 2026-10-16 with `python scripts/push_workflow_formatter.py --apply` (run it without `--apply` for a dry run). On 2026-10-20 the schedule moved from 6 AM to 10 PM Manila, because the PC is usually off at 6 AM and n8n does not catch up missed runs. The script changes only the Code node and the schedule trigger, writes rollback copies to `workflows/backup/`, and verifies the result before and after publishing.
 
 A tested local-first MVP that discovers GitHub repositories related to AI agents, automation, n8n, MCP, local LLMs, LLM applications, developer tools, and computer-use tooling. It normalizes and deduplicates candidates, applies deterministic relevance filtering, analyzes selected items with local Ollama/Qwen, validates structured output, and stores records in SQLite plus JSON.
 
@@ -145,7 +145,7 @@ workflows/github-mvp.n8n.json
 It contains:
 
 - Manual Trigger
-- Schedule Trigger: `0 8 * * *`
+- Schedule Trigger "Daily at 10 PM": `0 22 * * *` (was 8 AM, then 6 AM)
 - Timezone: `Asia/Manila`
 - HTTP Request to the radar service
 - 10-minute timeout, two attempts, and continue-on-failure behavior
@@ -201,7 +201,7 @@ Keep the workflow inactive and use **Execute Workflow** from the n8n editor. On 
 docker exec -e N8N_RUNNERS_BROKER_PORT=5680 ai-video-n8n n8n execute --id=13oxoQeASaKIsu74
 ```
 
-Port `5680` avoids colliding with the running n8n instance's task-broker port. A manual execution runs the existing Manual Trigger; it does not activate the workflow or enable the 8 AM schedule.
+Port `5680` avoids colliding with the running n8n instance's task-broker port. A manual execution runs the existing Manual Trigger; it does not activate the workflow or change the 10 PM schedule.
 
 ## Environment configuration
 
@@ -258,7 +258,7 @@ Validation evidence is retained in:
 3. Anonymous GitHub search rate limits are restrictive; a token is recommended for reliable scheduling.
 4. The HTTP service has no authentication and should remain local/firewalled. Add authentication before exposing it on a VPS.
 5. SQLite and the in-process run lock are appropriate for one local worker, not multiple distributed workers.
-6. The workflow is deliberately inactive, so the 8 AM trigger will not run until it is explicitly activated.
+6. The workflow is active and runs at 10 PM Manila only while this PC is on; n8n does not catch up runs missed while it was off.
 7. The local Radar service is not yet installed as an OS-managed or container-managed 24/7 service. It must be made durable before enabling the schedule.
 
 ## Next recommended implementation step
